@@ -7,6 +7,7 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
+import re
 from pathlib import Path
 
 from ..utils.console import ConsoleOutput
@@ -714,12 +715,25 @@ GitHub仓库：{github_repo}
             
             for line in lines:
                 line = line.strip()
-                if line.startswith('**标题中文翻译**：'):
-                    parsed_fields['title_zh'] = line.replace('**标题中文翻译**：', '').strip()
-                elif line.startswith('**摘要中文翻译**：'):
-                    parsed_fields['summary_zh'] = line.replace('**摘要中文翻译**：', '').strip()
-                elif line.startswith('**模型功能**：'):
-                    parsed_fields['model_function'] = line.replace('**模型功能**：', '').strip()
+                
+                # 1. 匹配标题 (支持多种格式: **标题中文翻译**：, **中文标题**:, 标题翻译：等)
+                # Regex: 匹配可能的星号 -> 包含"标题" -> 可能的星号 -> 冒号 -> 内容
+                title_match = re.match(r'^\**.*?标题.*?\**\s*[：:]\s*(.*)', line)
+                if title_match:
+                    parsed_fields['title_zh'] = title_match.group(1).strip()
+                    continue
+                
+                # 2. 匹配摘要 (支持多种格式: **摘要中文翻译**：, **中文摘要**:, 摘要翻译：等)
+                summary_match = re.match(r'^\**.*?摘要.*?\**\s*[：:]\s*(.*)', line)
+                if summary_match:
+                    parsed_fields['summary_zh'] = summary_match.group(1).strip()
+                    continue
+
+                # 3. 匹配功能 (支持多种格式: **模型功能**：, **功能**:, 模型功能：等)
+                func_match = re.match(r'^\**.*?功能.*?\**\s*[：:]\s*(.*)', line)
+                if func_match:
+                    parsed_fields['model_function'] = func_match.group(1).strip()
+                    continue
             
             # 特殊处理：title_zh 和 summary_zh 不能为空，如果为空则使用英文原文
             if not parsed_fields['title_zh'] or parsed_fields['title_zh'].strip() == '':

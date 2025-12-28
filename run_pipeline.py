@@ -10,6 +10,7 @@ import subprocess
 import argparse
 from datetime import datetime
 from pathlib import Path
+import send_feishu
 
 # 设置输出编码
 if sys.platform == "win32":
@@ -67,7 +68,7 @@ class PipelineRunner:
         
         if not basic_success:
             print(f"\n❌ Basic分析失败，终止流水线")
-            self.print_summary()
+            self.print_summary(date)
             return False
         
         # 步骤2: Advanced 分析
@@ -81,11 +82,11 @@ class PipelineRunner:
         advanced_success = self.run_command(advanced_cmd, "Advanced分析")
         
         # 显示最终结果
-        self.print_summary()
+        self.print_summary(date)
         return basic_success and advanced_success
     
-    def print_summary(self):
-        """显示执行摘要"""
+    def print_summary(self, date):
+        """显示执行摘要并发送通知"""
         print(f"\n{'='*60}")
         print(f"📊 流水线执行摘要")
         print(f"{'='*60}")
@@ -96,12 +97,101 @@ class PipelineRunner:
         if self.failed_steps:
             print(f"❌ 失败步骤: {', '.join(self.failed_steps)}")
         
+        status = "info"
+        summary_text = ""
+        
+        # 随机名言
+        import random
+        try:
+            from quotes import QUOTES
+            quote = random.choice(QUOTES)
+            quote_text = f"💡 *{quote}*\n"
+        except ImportError:
+            quote_text = "💡 *Stay hungry, stay foolish. - Steve Jobs*\n"
+
         if len(self.success_steps) == 2:
             print(f"🎉 流水线完成！所有步骤执行成功")
+            status = "success"
+            summary_text = quote_text
         elif len(self.success_steps) == 1:
             print(f"⚠️  流水线部分完成，请检查失败步骤")
+            status = "warning"
+            summary_text = f"{quote_text}\n"
         else:
             print(f"💥 流水线失败，请检查配置和网络")
+            status = "failed"
+            summary_text = f"Patch内部论文分析执行失败。\n\n❌ 失败步骤: {', '.join(self.failed_steps) if self.failed_steps else '全部'}"
+            
+        # 发送飞书通知
+        # 尝试读取 cleaned/ 下的 json 文件内容
+        import json
+        from pathlib import Path
+        
+        cleaned_file = Path(f"data/daily_reports/cleaned/{date}_clean.json")
+        paper_list_text = ""
+        
+        if cleaned_file.exists():
+            try:
+                with open(cleaned_file, 'r', encoding='utf-8') as f:
+                    papers = json.load(f)
+                    paper_list_text = f"\n📚 **本日论文列表 ({len(papers)}篇):**\n"
+                    # 限制通知中显示的论文数量，防止过长
+                    max_papers = 50 
+                    
+                    for i, paper in enumerate(papers[:max_papers], 1):
+                        # 格式化每篇论文的详细信息
+                        paper_id = paper.get('id', '')
+                        title = paper.get('title', 'Unknown')
+                        translation = paper.get('translation', '')
+                        authors = paper.get('authors', '')
+                        summary = paper.get('summary', '')
+                        url = paper.get('url', '')
+                        github = paper.get('github_repo', '')
+                        project = paper.get('project_page', '')
+                        func = paper.get('model_function', '')
+                        pub_date = paper.get('publish_date', '')
+
+                        # 构建卡片内容
+                        paper_list_text += f"\n---\n"
+                        paper_list_text += f"📄 **[{paper_id}] {title}**\n"
+                        if translation and translation != title:
+                            paper_list_text += f"🇨🇳 **{translation}**\n"
+                        
+                        paper_list_text += f"🗓️ **发布日期**: {pub_date}\n"
+                        paper_list_text += f"👥 **作者**: {authors}\n"
+                        if func:
+                            paper_list_text += f"🤖 **功能**: {func}\n"
+                        if summary:
+                            paper_list_text += f"📝 **摘要**: {summary[:300]}...\n"
+                            
+                        # 链接部分
+                        links = []
+                        if url: links.append(f"[ArXiv]({url})")
+                        if github: links.append(f"[GitHub]({github})")
+                        if project: links.append(f"[Project]({project})")
+                        
+                        if links:
+                            paper_list_text += f"🔗 {' | '.join(links)}\n"
+                    
+                    if len(papers) > max_papers:
+                        paper_list_text += f"\n\n...(还有 {len(papers) - max_papers} 篇论文未显示)..."
+
+            except Exception as e:
+                print(f"⚠️ 读取论文列表失败: {e}")
+        
+        try:
+            title = f"📢[PatchX日报] AI前沿论文速递 - {date}"
+            if status == "success":
+                title = f"📢[PatchX日报] AI前沿论文速递 - {date}"
+            elif status == "failed":
+                title = f"❌ [PatchX日报] AI前沿论文速递 - {date}"
+                
+            # 将论文列表添加到通知内容中
+            full_content = summary_text + paper_list_text
+            
+            send_feishu.send_feishu_notification(title, full_content, status)
+        except Exception as e:
+            print(f"⚠️ 发送飞书通知失败: {e}")
 
 def validate_date_format(date_str):
     """验证日期格式"""
