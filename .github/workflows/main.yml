@@ -14,6 +14,7 @@ jobs:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       TO_EMAIL: ${{ secrets.TO_EMAIL }}
+      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }} 
     
     steps:
       - name: Checkout code
