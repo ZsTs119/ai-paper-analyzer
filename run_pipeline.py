@@ -8,7 +8,7 @@ import os
 import sys
 import subprocess
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import send_feishu
 
@@ -180,9 +180,9 @@ class PipelineRunner:
                 print(f"⚠️ 读取论文列表失败: {e}")
         
         try:
-            title = f"📢[PatchX日报] AI前沿论文速递 - {date}"
+            title = f"📢[PatchX日报] AI前沿论文速递 - {date}(昨日精选)"
             if status == "success":
-                title = f"📢[PatchX日报] AI前沿论文速递 - {date}"
+                title = f"📢[PatchX日报] AI前沿论文速递 - {date}(昨日精选)"
             elif status == "failed":
                 title = f"❌ [PatchX日报] AI前沿论文速递 - {date}"
                 
@@ -254,8 +254,8 @@ def main():
     parser.add_argument(
         'date',
         nargs='?',
-        default=datetime.now().strftime('%Y-%m-%d'),
-        help='分析日期 (YYYY-MM-DD格式)，默认为今天'
+        default=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
+        help='分析日期 (YYYY-MM-DD格式)，默认为昨天'
     )
     parser.add_argument(
         '--rageMode',
